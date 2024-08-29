@@ -1,0 +1,11 @@
+LICENSE
+MANIFEST.in
+README.md
+pyproject.toml
+setup.py
+hexfix/__init__.py
+hexfix/checksum.py
+hexfix.egg-info/PKG-INFO
+hexfix.egg-info/SOURCES.txt
+hexfix.egg-info/dependency_links.txt
+hexfix.egg-info/top_level.txt
