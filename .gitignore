@@ -1,0 +1,77 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+
+# Distribution / packaging
+dist/
+build/
+*.egg-info/
+*.egg
+*.whl
+*.tar.gz
+*.zip
+
+# Environments
+.env/
+.venv/
+venv/
+ENV/
+env/
+*.env
+
+# PyInstaller
+*.spec
+
+# IDE / Editor directories and files
+.vscode/
+.idea/
+*.swp
+*.swo
+*.sublime-workspace
+*.sublime-project
+
+# Logs
+*.log
+
+# Database
+*.sqlite3
+
+# Coverage reports
+.coverage
+*.coverage
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+
+# Mypy
+.mypy_cache/
+
+# Pyre type checker
+.pyre/
+
+# Pylint
+.pylint.d/
+
+# mypy
+.mypy_cache/
+
+# Sphinx documentation
+docs/_build/
+
+# Local configurations
+*.local
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# Black formatter
+*.pyi
+
+# Others
+*.DS_Store
+*.desktop
+*.gdb_history
