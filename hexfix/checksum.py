@@ -17,9 +17,7 @@ def parse_srec_line(line):
     except ValueError:
         return None, None, None
 
-import zlib
-
-def calculate_crc32_from_srec_filename(srec_filename, start_address, end_address):
+def crc32_for_address_range(srec_filename, start_address, end_address):
     """
     Calculates the CRC32 checksum from data records within a specified range in an SREC file.
 
