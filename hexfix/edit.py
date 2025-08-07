@@ -1,7 +1,8 @@
 """Functions to extract address ranges and relocate data within SREC files."""
 from __future__ import annotations
 
-from typing import List, Tuple
+from pathlib import Path
+from typing import Dict, List, Tuple
 
 from .checksum import parse_srec_line
 
@@ -121,5 +122,127 @@ def relocate_range_srec(input_name: str, output_name: str, src_start: int, src_e
     output_lines.extend(line for _, line in relocated_lines)
     if termination_line:
         output_lines.append(termination_line)
+    with open(output_name, "w") as outfile:
+        outfile.writelines(output_lines)
+
+
+def parse_patch_file(patch_file: str | Path) -> Dict[int, int]:
+    """Parse a simple patch file into a dictionary.
+
+    Each non-empty line should contain an address and a byte value separated
+    by whitespace or a colon. Numbers may be in decimal or prefixed hexadecimal
+    form. Lines beginning with ``#`` are treated as comments.
+    """
+
+    patches: Dict[int, int] = {}
+    for raw in Path(patch_file).read_text().splitlines():
+        line = raw.split("#", 1)[0].strip()
+        if not line:
+            continue
+        if ":" in line:
+            addr_str, byte_str = line.split(":", 1)
+        else:
+            parts = line.split()
+            if len(parts) != 2:
+                continue
+            addr_str, byte_str = parts
+        address = int(addr_str, 0)
+        byte_val = int(byte_str, 0) & 0xFF
+        patches[address] = byte_val
+    return patches
+
+
+def patch_srec(
+    input_name: str,
+    output_name: str,
+    patches: Dict[int, int] | str | Path,
+) -> None:
+    """Apply byte patches to an SREC file.
+
+    Parameters
+    ----------
+    input_name:
+        Path to the source SREC file.
+    output_name:
+        Where the patched SREC will be written.
+    patches:
+        Mapping of ``{address: byte}`` or a path to a text file understood by
+        :func:`parse_patch_file`.
+    """
+
+    if not isinstance(patches, dict):
+        patches = parse_patch_file(patches)
+
+    header_lines: List[str] = []
+    term_lines: List[str] = []
+    data_records: List[Tuple[str, int, bytearray]] = []
+    addr_index: Dict[int, Tuple[int, int]] = {}
+
+    with open(input_name, "r") as infile:
+        for line in infile:
+            line = line.rstrip("\n")
+            if not line.startswith("S"):
+                continue
+            record_type = line[0:2]
+            if record_type in ("S1", "S2", "S3"):
+                rec_type, address, data = parse_srec_line(line)
+                buf = bytearray(data)
+                idx = len(data_records)
+                for offset in range(len(buf)):
+                    addr_index[address + offset] = (idx, offset)
+                data_records.append((record_type, address, buf))
+            elif record_type == "S0":
+                header_lines.append(line + "\n")
+            elif record_type in ("S7", "S8", "S9"):
+                term_lines.append(line + "\n")
+
+    missing: Dict[int, int] = {}
+    for addr, val in patches.items():
+        if addr in addr_index:
+            idx, offset = addr_index[addr]
+            data_records[idx][2][offset] = val & 0xFF
+        else:
+            missing[addr] = val & 0xFF
+
+    if missing:
+        sorted_addrs = sorted(missing)
+        start = sorted_addrs[0]
+        chunk = [missing[start]]
+        prev = start
+        groups: List[Tuple[int, List[int]]] = []
+        for addr in sorted_addrs[1:]:
+            if addr == prev + 1:
+                chunk.append(missing[addr])
+            else:
+                groups.append((start, chunk))
+                start = addr
+                chunk = [missing[addr]]
+            prev = addr
+        groups.append((start, chunk))
+
+        MAX_LEN = 16
+        for start_addr, data_list in groups:
+            offset = 0
+            while offset < len(data_list):
+                piece = data_list[offset : offset + MAX_LEN]
+                addr = start_addr + offset
+                record_type = (
+                    "S1"
+                    if addr <= 0xFFFF
+                    else "S2"
+                    if addr <= 0xFFFFFF
+                    else "S3"
+                )
+                data_records.append(
+                    (record_type, addr, bytearray(piece))
+                )
+                offset += len(piece)
+
+    data_records.sort(key=lambda r: r[1])
+    output_lines = header_lines[:]
+    for record_type, address, buf in data_records:
+        output_lines.append(_encode_srec_line(record_type, address, bytes(buf)))
+    output_lines.extend(term_lines)
+
     with open(output_name, "w") as outfile:
         outfile.writelines(output_lines)
